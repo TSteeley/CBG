@@ -32,7 +32,6 @@ def Gather(ticker, new_data=False):
         pickle.dump(data, open(f'{ticker}.pkl', 'wb'))
     return data
 
-
 def Calculate(data: pd.DataFrame):
     """# Calculate
 
