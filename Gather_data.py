@@ -1,3 +1,4 @@
+from ast import main
 from time import sleep
 import pandas as pd
 import pickle
@@ -8,12 +9,17 @@ api_key = av_key
 
 def Gather(ticker, new_data=False):
     if not new_data:
-        data = pickle.load(open(f'./data/{ticker}.pkl', 'rb'))
+        data = pickle.load(open(f'./data.pkl', 'rb'))[ticker]
     else:
+        old_data = pickle.load(open('data.pkl', 'rb'))
         data = pd.DataFrame()
         ts = TimeSeries(key=api_key, output_format='csv')
         for y in range(1, 3):
             for m in range(1, 13):
+                # this section i have marked for imporvement just delaying
+                # AV has a ratelimit of 5/ min so i just have it wait 12 seconds between 
+                # calls. it doesnt feel particularly efficient but it works for now.
+
                 sleep(12)
                 data_ts, meta_data = ts.get_intraday_extended(
                     symbol=ticker, interval='1min', slice=f'year{str(y)}month{str(m)}')
@@ -27,9 +33,10 @@ def Gather(ticker, new_data=False):
         data.columns = ['2. high', '3. low', '4. close']
         data['midpoint'] = ((data['2. high']+data['3. low'])*0.5)
         data = data.sort_index(ascending=True)
-        pickle.dump(data, open(f'{ticker}_raw.pkl', 'wb'))
-        data = Calculate(data)
-        pickle.dump(data, open(f'{ticker}.pkl', 'wb'))
+        old_data[f'{ticker}_raw'] = data
+        calculated_data = Calculate(data)
+        old_data[f'{ticker}'] = calculated_data
+        pickle.dump(old_data, open(f'data.pkl', 'wb'))
     return data
 
 def Calculate(data: pd.DataFrame):
@@ -37,27 +44,29 @@ def Calculate(data: pd.DataFrame):
 
     All data interpretation in one place for easier bug finding.
 
-    not necessarily meant to be directly called
+    Not necessarily meant to be directly called.
 
     Args:
-        data(pandas.DataFrame): raw data downloaded from
+        data(pandas.DataFrame): raw data downloaded from Alpha Vantage
 
     Returns:
         list[dictionary]: List of dictionaries for intepretation
     """
+    # main data
     data.index = data.index.floor('H')
     b = data['2. high'].groupby(data.index).max()
     c = data['3. low'].groupby(data.index).min()
     c1 = data['4. close'].groupby(data.index).nth(-1)
     d = data['midpoint'].groupby(data.index).mean()
-    d1 = data['midpoint'].groupby(
-        data.index).std().rename('standard deviation')
-    e = data['midpoint'].diff().groupby(data.index).mean().rename('iht')
-    f = data['midpoint'].diff().diff().groupby(
-        data.index).mean().rename('ihtt')
-    data = pd.concat([b, c, c1, d, d1, e, f], axis=1)
-    data['ave std'] = (data['standard deviation'].rolling(20).mean())/data['midpoint']
-    data['standard deviation'] = data['standard deviation']/data['midpoint']
+    # intra hour indicators
+    d1 = data['midpoint'].groupby(data.index).std().rename('standard deviation')
+    e = data['midpoint'].diff().groupby(data.index).mean().rename('iht') # in hour trend
+    f = data['midpoint'].diff().diff().groupby(data.index).mean().rename('ihtt') # trend of the in hour trend sort of
+    # concatenate into hour by hour data
+    data = pd.concat([b, c, c1, d, d1, e, f], axis=1).dropna()
+    # at 8pm every day 1 data point goes through for the hour. This returns na in std and breaks my shit. dropna() fixes that
+    data['rolling intra std'] = (data['standard deviation'].rolling(20).mean())/data['midpoint'] # expressed as a %
+    data['rolling inter std'] = data['standard deviation']/data['midpoint'] # expressed as a %
     data['sma 100'] = data['midpoint'].rolling(100).mean()
     data['sma 100 dirv smooth'] = data['sma 100'].diff().rolling(7).mean()
     data['sma 100 ddirv smooth'] = data['sma 100'].diff().diff().rolling(20).mean()
@@ -71,13 +80,14 @@ def Calculate(data: pd.DataFrame):
     data['mp, 20 gap'] = (data['midpoint']-data['sma 20'])*data['sma 20']
     data['mp,100 gap'] = (data['midpoint']-data['sma 100'])*data['sma 100']
 
+    data.to_csv('wtf.csv')
     data = data.dropna()
     data = data.reset_index()
     data = data.to_dict('records')
     return data
 
 
-def reinterprate(ticker: str):
+def reinterprate(ticker: str = '0'):
     """#Reinterparate
     Alpha vantage rate limit makes downloading datasets time consuming
     this file stores a raw data set that can be reintepereated if indicators are to be added
@@ -89,9 +99,12 @@ def reinterprate(ticker: str):
     Returns:
         pandas.DataFrame
     """
-    data = pickle.load(open(f'./data/{ticker}_raw.pkl', 'rb'))
-    data = Calculate(data)
-    pickle.dump(data, open(f'data/{ticker}.pkl', 'wb'))
+    data = pickle.load(open(f'./data.pkl', 'rb'))
+    if ticker == '0':
+        ticker = get_tickers()
+    for tick in ticker:
+        data[tick] = Calculate(data[f'{tick}_raw'])
+    pickle.dump(data, open(f'data.pkl', 'wb'))
     return data
 
 
@@ -122,4 +135,15 @@ def my_rsi(data):
         return 0.50-1/(1-up/down)
 
     except ZeroDivisionError:
-        return 0.5 # If market goes up for all hours causes 0diision error; return 0.5
+        return 0.5 # If market goes up for all hours causes 0 division error
+
+def get_tickers():
+    data:dict = pickle.load(open(f'data.pkl', 'rb'))
+    important_keys = []
+    for i in data:
+        if not i.__contains__('_raw'):
+            important_keys.append(i)
+    return important_keys
+
+if __name__ == '__main__':
+    reinterprate(['spy'])
