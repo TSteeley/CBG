@@ -1,4 +1,3 @@
-from ast import main
 from time import sleep
 import pandas as pd
 import pickle
@@ -16,8 +15,8 @@ def Gather(ticker, new_data=False):
         ts = TimeSeries(key=api_key, output_format='csv')
         for y in range(1, 3):
             for m in range(1, 13):
-                # this section i have marked for imporvement just delaying
-                # AV has a ratelimit of 5/ min so i just have it wait 12 seconds between 
+                # this section is marked for imporvement
+                # AV has a ratelimit of 5/ min so I just have it wait 12 seconds between
                 # calls. it doesnt feel particularly efficient but it works for now.
 
                 sleep(12)
@@ -29,7 +28,7 @@ def Gather(ticker, new_data=False):
                 for col in part.iloc[:, 1::]:
                     part[col] = pd.to_numeric(part[col], errors='coerce')
                 part = part.set_index('time')
-                data = data.append(part.iloc[:, 1:4])
+                data = pd.concat([data,part])
         data.columns = ['2. high', '3. low', '4. close']
         data['midpoint'] = ((data['2. high']+data['3. low'])*0.5)
         data = data.sort_index(ascending=True)
@@ -144,6 +143,3 @@ def get_tickers():
         if not i.__contains__('_raw'):
             important_keys.append(i)
     return important_keys
-
-if __name__ == '__main__':
-    reinterprate(['spy'])
