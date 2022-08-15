@@ -2,8 +2,8 @@ import pandas as pd
 from math import inf
 import random
 from numpy import clip
-
 from Gather_data import Gather
+
 
 class full_control:
     def __init__(self):

@@ -6,9 +6,13 @@ from api_key import av_key
 
 api_key = av_key
 
-def Gather(ticker, new_data=False):
+def Gather(ticker, new_data=False, stage:str = 'training'):
     if not new_data:
-        data = pickle.load(open(f'./data.pkl', 'rb'))[ticker]
+        match stage:
+            case 'training':
+                data = pickle.load(open(f'./training_data.pkl', 'rb'))[ticker]
+            case 'verifying':
+                data = pickle.load(open(f'./data.pkl', 'rb'))[ticker]
     else:
         old_data = pickle.load(open('data.pkl', 'rb'))
         data = pd.DataFrame()
@@ -136,8 +140,12 @@ def my_rsi(data):
     except ZeroDivisionError:
         return 0.5 # If market goes up for all hours causes 0 division error
 
-def get_tickers():
-    data:dict = pickle.load(open(f'data.pkl', 'rb'))
+def get_tickers(stage:str = 'training'):
+    match stage:
+        case 'training':
+            data:dict = pickle.load(open(f'training_data.pkl', 'rb'))
+        case 'verifying':
+            data:dict = pickle.load(open(f'data.pkl', 'rb'))
     important_keys = []
     for i in data:
         if not i.__contains__('_raw'):

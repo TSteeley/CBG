@@ -7,7 +7,8 @@ keys = [
  'standard deviation',
  'iht',
  'ihtt',
- 'ave std',
+ 'rolling intra std',
+ 'rolling inter std',
  'sma 100',
  'sma 100 dirv smooth',
  'sma 100 ddirv smooth',
@@ -19,7 +20,7 @@ keys = [
  'rsi ddirv smooth',
  '20,100 gap',
  'mp, 20 gap',
- 'mp,100 gap',
+ 'mp,100 gap'
  ]
 
 # models = []
@@ -40,33 +41,32 @@ keys = [
 
 def init():
     models = []
-    # for item in keys:
-    #     a = []
-    #     for n in range(5):
-    #         b = full_control().construct(
-    #             basis_wf=[0.03,0.03],
-    #             basis_price='midpoint',
-    #             modifiers=[{item:(random()-0.5)*0.1*n},{},{}]
-    #         )
-    #         b.id = f'{b.id}{str(n)}'
-    #         a.append(b)
-    #     models.append(a)
-
-    for item1, item2, item3 in combinations(keys,3):
+    for item in keys:
         a = []
         for n in range(5):
             b = full_control().construct(
                 basis_wf=[0.03,0.03],
                 basis_price='midpoint',
-                modifiers=[{item1:(random()-0.5)*n*0.1,item2:(random()-0.5)*0.1*n,
-                item3:(random()-0.5)*n*0.1},{},{}]
+                modifiers=[{item:(random()-0.5)*0.1*n},{},{}]
             )
             b.id = f'{b.id}{str(n)}'
             a.append(b)
         models.append(a)
 
+    # for item1, item2, item3 in combinations(keys,3):
+    #     a = []
+    #     for n in range(5):
+    #         b = full_control().construct(
+    #             basis_wf=[0.03,0.03],
+    #             basis_price='midpoint',
+    #             modifiers=[{item1:(random()-0.5)*n*0.1,item2:(random()-0.5)*0.1*n,
+    #             item3:(random()-0.5)*n*0.1},{},{}]
+    #         )
+    #         b.id = f'{b.id}{str(n)}'
+    #         a.append(b)
+    #     models.append(a)
+
     pickle.dump(models, open('models_to_assess.pkl', 'wb'))
-    pickle.dump([], open('active.pkl', 'wb'))
     pickle.dump([], open('checked_models.pkl', 'wb'))
 
 
