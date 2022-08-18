@@ -8,42 +8,15 @@ from Gather_data import Gather
 
 
 class CBG:
-    def __init__():
-        self = CBG.__new__()
+    def __init__(self, data, stage):
         self.history = []
         self.open = []
-        self.buy = 0
         self.max_positions = inf
         self.age_limit = 200
         self.score = -inf
         self.id = ''
-        self.target = 0.03
-        self.fail = 0.03
-        self.basis = 'midpoint'
-        self.price_modifiers = {}
-        self.w_modifier = {}
-        self.f_modifier = {}
-        self.var_length = 2+len(self.price_modifiers)+len(self.w_modifier)+len(self.f_modifier)
-        self.args = [0.03,0.03]
-        self.bounds = CBG.set_bounds(len(self.args))
 
-    def full_control(basis_wf:list, basis_price: str, modifiers: list):
-        self = CBG.__init__()
-        self.id = CBG.__set_id(modifiers)
-        self.target = basis_wf[0]
-        self.fail = basis_wf[1]
-        self.basis = basis_price
-        self.price_modifiers = modifiers[0]
-        self.w_modifier = modifiers[1]
-        self.f_modifier = modifiers[2]
-        self.var_length = 2+len(self.price_modifiers)+len(self.w_modifier)+len(self.f_modifier)
 
-        self.args = basis_wf
-        for part in modifiers:
-            for item in part:
-                self.args.append(part[item])
-
-        return self
 
     def update_args(self, vars:list):
         self.score = []
@@ -177,21 +150,7 @@ class CBG:
             keys.append(keys)
         return keys
 
-    def bounds(self, input):
-        if isinstance(input,int):
-            bound = [[0.001,inf], [0.02,1]]
-            for _ in range(input-2):
-                bound.append([-inf,inf])
-        elif isinstance(input, list) and len(input) == self.args:
-            bound = input
-        else:
-            if len(input) != self.args:
-                error(f'length of bounds {len(input)}, must be equal to length of args {len(self.args)}')
-            elif not isinstance(input, int| list):
-                error(f'bounds function accepts inputs of type int or type list not type, {type(input)}')
-        return bound
-
-    def __set_id(modifiers):
+    def set_id(modifiers):
         b = str(modifiers[0].keys()).removeprefix('dict_keys(').removesuffix(')')
         c = str(modifiers[1].keys()).removeprefix('dict_keys(').removesuffix(')')
         d = str(modifiers[2].keys()).removeprefix('dict_keys(').removesuffix(')')
