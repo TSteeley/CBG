@@ -1,3 +1,5 @@
+from logging import error
+from operator import mod
 import pandas as pd
 from math import inf
 import random
@@ -5,45 +7,29 @@ from numpy import clip
 from Gather_data import Gather
 
 
-class full_control:
-    def __init__(self):
+class CBG:
+    def __init__():
+        self = CBG.__new__()
         self.history = []
         self.open = []
         self.buy = 0
         self.max_positions = inf
         self.age_limit = 200
         self.score = -inf
+        self.id = ''
+        self.target = 0.03
+        self.fail = 0.03
+        self.basis = 'midpoint'
+        self.price_modifiers = {}
+        self.w_modifier = {}
+        self.f_modifier = {}
+        self.var_length = 2+len(self.price_modifiers)+len(self.w_modifier)+len(self.f_modifier)
+        self.args = [0.03,0.03]
+        self.bounds = CBG.set_bounds(len(self.args))
 
-    def construct(self, basis_wf:list, basis_price: str, modifiers: list):
-        """This is sort of a nightmare
-
-        basis_wf = list (0.03, 0.03) // (target hope, fail cope)
-            This is static and remians constant for the duration.
-
-        basis_price = 7:int || 8:int || random:string
-            choose one. mipoint, sma 100, sma 20
-        modifiers
-            a list of dictionaries
-
-            price_modifiers = dict{str: value, str: value ...}
-                dict{what i want to depend change on: its power, ...}
-
-            w_modifiers = dict{int: value, int: value ...}
-                same deal as price modifiers
-
-            f_modifiers = dict{int: value, int: value ...}
-                same deal as price modifiers
-
-        Args:
-            basis_wf (list): basis buy, sell Static values
-            basis_price (str): from what baseline do we start
-            price_modifiers (dict): modifies the basis price from conditions
-            wf_modifiers (dict): modifies the buy sell hope based on conditions
-        """
-        b = str(modifiers[0].keys()).removeprefix('dict_keys(').removesuffix(')')
-        c = str(modifiers[1].keys()).removeprefix('dict_keys(').removesuffix(')')
-        d = str(modifiers[2].keys()).removeprefix('dict_keys(').removesuffix(')')
-        self.id = f'pm{b}wm{c}fm{d}'
+    def full_control(basis_wf:list, basis_price: str, modifiers: list):
+        self = CBG.__init__()
+        self.id = CBG.__set_id(modifiers)
         self.target = basis_wf[0]
         self.fail = basis_wf[1]
         self.basis = basis_price
@@ -191,6 +177,27 @@ class full_control:
             keys.append(keys)
         return keys
 
+    def bounds(self, input):
+        if isinstance(input,int):
+            bound = [[0.001,inf], [0.02,1]]
+            for _ in range(input-2):
+                bound.append([-inf,inf])
+        elif isinstance(input, list) and len(input) == self.args:
+            bound = input
+        else:
+            if len(input) != self.args:
+                error(f'length of bounds {len(input)}, must be equal to length of args {len(self.args)}')
+            elif not isinstance(input, int| list):
+                error(f'bounds function accepts inputs of type int or type list not type, {type(input)}')
+        return bound
+
+    def __set_id(modifiers):
+        b = str(modifiers[0].keys()).removeprefix('dict_keys(').removesuffix(')')
+        c = str(modifiers[1].keys()).removeprefix('dict_keys(').removesuffix(')')
+        d = str(modifiers[2].keys()).removeprefix('dict_keys(').removesuffix(')')
+        id = f'pm{b}wm{c}fm{d}'
+        return id
+
 def ambiguous(row, data):
     if (row['type'] == 'Buy') and (row['win'] < data['2. high']) and (row['fail'] > data['3. low']):
         return True
@@ -206,7 +213,7 @@ def fail(row, data):
         return True
     return False
 
-def test_model(data,model:full_control):
+def test_model(data, model:CBG):
     for row in data:
         model = model.check_closes(row)
         if (model.get_open_positions() < model.max_positions) and model.buy > row['3. low']:
@@ -226,7 +233,7 @@ def pl(score):
                 log *= 2-(row['Close']/row['Price'])
     return log
 
-def get_score(model:full_control):
+def get_score(model:CBG):
     score  = [d for d in model.history if ((d['Outcome'] != 'Ambiguous') & (d['Outcome'] != 'just a baby'))]
     score = pl(score)
     score = 10*score
@@ -249,9 +256,3 @@ def std(score):
         stdev += (item-mean)**2
     stdev = (stdev / len(score))**(1/2)
     return mean, stdev
-
-def bounds(length: int):
-    bound = [[0,inf], [0,1]]
-    for _ in range(length-2):
-        bound.append([-inf,inf])
-    return bound
