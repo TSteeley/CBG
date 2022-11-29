@@ -14,8 +14,8 @@ class CBG:
         self.buyPrice = ''
         self.win_condition = ''
         self.fail_condition = ''
-        self.report = []
-        self.positions = ''
+        self.report = {}
+        self.positions = {}
 
     def set_instruments(self, instruments:list, intra_indicators:list = [], inter_indicators:list = []):
         """Initialise data
@@ -90,19 +90,65 @@ class CBG:
         report = {}
         for ins in self.instruments:
             triggers = self.trigger_condition(self.instruments[ins])
-            # Dont use self... cause its gonna change every loop... idiot
-            self.positions = pd.DataFrame(self.buyPrice(triggers).rename('Buy Price'))
-            self.positions = pd.DataFrame.join(self.positions,self.win_condition(triggers))
-            self.positions = pd.DataFrame.join(self.positions,self.fail_condition(triggers))
+            position = pd.DataFrame(self.buyPrice(triggers).rename('Buy Price'))
+            position = pd.DataFrame.join(position,self.win_condition(pd.DataFrame.join(triggers,position)).rename('TP'))
+            position = pd.DataFrame.join(position,self.fail_condition(pd.DataFrame.join(triggers,position)).rename('SL'))
             report['Buys'] = len(triggers)
+            self.positions[ins] = position
             self.report[ins] = report
-
         return self
 
 
 
     def assess_outcome(self):
-        pass
+        for ind in self.positions:
+            outcomes = []
+            for pos in self.positions[ind].reset_index().to_dict('records'):
+                period = self.instruments[ind].loc[pos['time']:pos['time']+pd.Timedelta(days=7),:]
+                # IF the price never reaches the take profit or stop loss; 0 hits
+                if all([pos['SL'] < i < pos['TP'] for i in [period['low'].min(), period['high'].max()]]):
+                    outcomes.append({
+                        'time': pos['time'],
+                        'outcome' : 'Too Old',
+                        'close price' : period.iloc[-1,:]['close']
+                    })
+                # IF the price reaches the Take profit AND stop loss; Mulitple hits
+                elif not any([pos['SL'] < i < pos['TP'] for i in [period['low'].min(), period['high'].max()]]):
+                    # comb through hour by hour to see what happens first
+                    close = period[(period['high'] > pos['TP']) | (period['low'] < pos['SL'])].iloc[0,:]
+                    if close['low'] < pos['SL']:
+                        outcomes.append({
+                            'time' : pos['time'],
+                            'outcome' : 'Fail',
+                            'close price' : pos['SL']
+                        })
+                    elif close['high'].max() > pos['TP']:
+                        outcomes.append({
+                            'time' : pos['time'],
+                            'outcome' : 'Success',
+                            'close price' : pos['TP']
+                    })
+
+                # IF the price only reaches the Take profit
+                elif period['high'].max() > pos['TP']:
+                    outcomes.append({
+                        'time' : pos['time'],
+                        'outcome' : 'Success',
+                        'close price' : pos['TP']
+                    })
+
+                # IF the price reaches the Stop loss
+                elif period['low'].min() < pos['SL']:
+                    outcomes.append({
+                        'time' : pos['time'],
+                        'outcome' : 'Fail',
+                        'close price' : pos['SL']
+                    })
+                    # assign close to be stop loss price
+                else:
+                    print('Somethings fucked')
+            self.positions[ind] = pd.DataFrame.join(self.positions[ind],pd.DataFrame(outcomes).set_index('time'))
+            self.report[ind]['wins'] = self.positions[ind][self.positions[ind]['outcome'] == 'Success']
 
 
 # class old:
