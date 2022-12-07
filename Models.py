@@ -4,6 +4,7 @@ from math import inf
 import random
 from numpy import clip
 from Gather_data import Gather
+pd.options.mode.chained_assignment = None
 
 class CBG:
     def __init__(self):
@@ -20,10 +21,12 @@ class CBG:
     def set_instruments(self, instruments:list, intra_indicators:list = [], inter_indicators:list = []):
         """Initialise data
 
+        premade indicators can be found in Tech_indicators file
+
         Args:
             instruments (list): list of instruments by name [qqq,spy,...]
-            intra_indicators (list, optional): intra hour indicators, input as [(function, column),(function,column)]. Defaults to [].
-            inter_indicators (list, optional): inter hour indicators, input as [(function, column, args),(function,column, args)]. Defaults to [].
+            intra_indicators (list, optional): intra hour indicators, input lambda functions. Defaults to [].
+            inter_indicators (list, optional): inter hour indicators, input lambda functions. Defaults to [].
 
         Returns:
             pd.df : all data with indicators
@@ -87,17 +90,15 @@ class CBG:
 
         This is the first step in executing the model, broken up so I dont gouge my on eyes out
         """
-        report = {}
         for ins in self.instruments:
             triggers = self.trigger_condition(self.instruments[ins])
-            position = pd.DataFrame(self.buyPrice(triggers).rename('Buy Price'))
-            position = pd.DataFrame.join(position,self.win_condition(pd.DataFrame.join(triggers,position)).rename('TP'))
-            position = pd.DataFrame.join(position,self.fail_condition(pd.DataFrame.join(triggers,position)).rename('SL'))
-            report['Buys'] = len(triggers)
-            self.positions[ins] = position
-            self.report[ins] = report
+            triggers['Buy Price'] = self.buyPrice(triggers)
+            triggers['TP'] = self.win_condition(triggers)
+            triggers['SL'] = self.fail_condition(triggers)
+            triggers.loc[triggers['Buy Price'] > triggers['TP'], 'TP'] = triggers['Buy Price']*1.05
+            triggers.loc[triggers['Buy Price'] < triggers['SL'], 'SL'] = triggers['Buy Price']*0.95
+            self.positions[ins] = triggers.loc[:,['Buy Price','TP','SL']]
         return self
-
 
 
     def assess_outcome(self):
@@ -122,7 +123,7 @@ class CBG:
                             'outcome' : 'Fail',
                             'close price' : pos['SL']
                         })
-                    elif close['high'].max() > pos['TP']:
+                    elif close['high'] > pos['TP']:
                         outcomes.append({
                             'time' : pos['time'],
                             'outcome' : 'Success',
@@ -148,7 +149,48 @@ class CBG:
                 else:
                     print('Somethings fucked')
             self.positions[ind] = pd.DataFrame.join(self.positions[ind],pd.DataFrame(outcomes).set_index('time'))
-            self.report[ind]['wins'] = self.positions[ind][self.positions[ind]['outcome'] == 'Success']
+
+    def assess_outcome1(self):
+        for ind in self.positions:
+            outcomes = []
+            for pos in self.positions[ind].reset_index().to_dict('records'):
+                period:pd.DataFrame = self.instruments[ind].loc[pos['time']:pos['time']+pd.Timedelta(days=7),:]
+                # IF the price never reaches the take profit or stop loss; 0 hits
+                if all([pos['SL'] < i < pos['TP'] for i in [period['low'].min(), period['high'].max()]]):
+                    outcomes.append({
+                        'time': pos['time'],
+                        'close price' : period.iloc[-1,:]['close']
+                    })
+                else:
+                    close = period[(period['high'] > pos['TP']) | (period['low'] < pos['SL'])].iloc[0,:]
+                    if close['low'] < pos['SL']:
+                        outcomes.append({
+                            'time' : pos['time'],
+                            'close price' : pos['SL']
+                        })
+                    elif close['high'] > pos['TP']:
+                        outcomes.append({
+                            'time' : pos['time'],
+                            'close price' : pos['TP']
+                        })
+            self.positions[ind] = pd.DataFrame.join(self.positions[ind], pd.DataFrame(outcomes).set_index('time'))
+        return self
+
+    def get_score(self):
+        score = []
+        for pos in self.positions:
+            scr = (self.positions[pos]['close price']/self.positions[pos]['Buy Price'])
+            scr = scr-1
+            scr = scr.sum()
+            score.append(scr)
+        return sum(score)/len(score)
+
+    def get_report(self):
+        for pos in self.positions:
+            print(self.positions[pos].groupby(self.positions[pos]['outcome']).size())
+            a = self.positions[pos].loc[self.positions[pos]['outcome'] == 'Too Old']
+            a = ((a['Buy Price']/a['close price'])-1).sum()
+            print(f'Too Old closed with an average gain of {a}')
 
 
 # class old:
@@ -298,21 +340,6 @@ class CBG:
 #         d = str(modifiers[2].keys()).removeprefix('dict_keys(').removesuffix(')')
 #         id = f'pm{b}wm{c}fm{d}'
 #         return id
-
-# def ambiguous(row, data):
-#     if (row['type'] == 'Buy') and (row['win'] < data['2. high']) and (row['fail'] > data['3. low']):
-#         return True
-#     return False
-
-# def win(row, data):
-#     if (row['type'] == 'Buy') and (row['win'] < data['2. high']):
-#         return True
-#     return False
-
-# def fail(row, data):
-#     if (row['type'] == 'Buy') and (row['fail'] > data['3. low']):
-#         return True
-#     return False
 
 # def test_model(data, model:CBG):
 #     for row in data:
