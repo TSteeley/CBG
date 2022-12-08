@@ -1,22 +1,35 @@
 # CBG
 
 Crystal Ball Gazing
-Reshuffle
 
-This reshuffle is a major update and will be completely distinct from the previous version in approach but the same in aim.
+The goal of this project is to take stock market data and test trading Strategies.
 
-I have a pretty significant wishlist for this version.
+## Gather Data
 
-## Issues with previous verison
+This Function uses Alpha Vantage API to download market data to analyse.
 
-My last version was poorly planned and ended up becoming a complicated web of functions.
+## Models
 
-The reason it became untidy is not cause I didn't plan just that I didn't really know what I was planning for. I've never made something this complex so without the experience it was kind of impossible to do it well first try.
+A self made class that stores information like the market data, as well as the 'Buys' and executes strategies with input lambda functions. This is intentionally made to be very general and puts the emphasis on the user to input strategies, and technical indicators.
 
-It became a complicated web of functions because i want a lot of diversoty on strategies and approaches but I also wanted the simplicity of calling a single command to access any part. This quickly made sections large and frankly remembering how everything worked and finding errors became a nightmare.
+## Technical Indicators
 
-## changes and goals
+Stored built in common indicators for ease of use, and/or demonstration purpose.
 
-The biggest change is that what i would refer to as the internal infrastructure i.e. the parts the deal with the testing and execution of the model are completely separated from sections that manage data interpretation and manipulation. Instead data handling is done by writing a lambda function that is passed into the main function when initialising all the data. This has the advantage that issues with data manipulation are issues with the specific lambda function and the main CBG class does not have to remember all the data manipulation techniques.
+## Maximise
 
-My goal moving forward is to build back all of the functionality with a big increase in simplicity and readability and speed.
+Takes a function and has functions that estimates the derivative, seconds derivative, Gradient vector, and Laplacian. This can be used for optimisation problems.
+
+## Test Model
+
+a full example of the function in action, as well a callable function for better integration with MATLAB.
+
+## Maximise Py Fun
+
+Matlab has excellent learning toolboxes and optimisation functions. Taking advantage of these tools helps to inform model parameters.
+
+# Future
+
+Right now I am focused on function creation and optimisation. This is only one approach and future aspirations is to use inference techniques with machine learning to predict the outcome at a given time.
+
+Another future ambition is to integrate the algorithms found with alpha vantage to trade live.
