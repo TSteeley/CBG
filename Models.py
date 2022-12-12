@@ -150,31 +150,6 @@ class CBG:
                     print('Somethings fucked')
             self.positions[ind] = pd.DataFrame.join(self.positions[ind],pd.DataFrame(outcomes).set_index('time'))
 
-    def assess_outcome1(self):
-        for ind in self.positions:
-            outcomes = []
-            for pos in self.positions[ind].reset_index().to_dict('records'):
-                period:pd.DataFrame = self.instruments[ind].loc[pos['time']:pos['time']+pd.Timedelta(days=7),:]
-                # IF the price never reaches the take profit or stop loss; 0 hits
-                if all([pos['SL'] < i < pos['TP'] for i in [period['low'].min(), period['high'].max()]]):
-                    outcomes.append({
-                        'time': pos['time'],
-                        'close price' : period.iloc[-1,:]['close']
-                    })
-                else:
-                    close = period[(period['high'] > pos['TP']) | (period['low'] < pos['SL'])].iloc[0,:]
-                    if close['low'] < pos['SL']:
-                        outcomes.append({
-                            'time' : pos['time'],
-                            'close price' : pos['SL']
-                        })
-                    elif close['high'] > pos['TP']:
-                        outcomes.append({
-                            'time' : pos['time'],
-                            'close price' : pos['TP']
-                        })
-            self.positions[ind] = pd.DataFrame.join(self.positions[ind], pd.DataFrame(outcomes).set_index('time'))
-        return self
 
     def get_score(self):
         score = []
@@ -186,11 +161,20 @@ class CBG:
         return sum(score)/len(score)
 
     def get_report(self):
-        for pos in self.positions:
-            print(self.positions[pos].groupby(self.positions[pos]['outcome']).size())
-            a = self.positions[pos].loc[self.positions[pos]['outcome'] == 'Too Old']
-            a = ((a['Buy Price']/a['close price'])-1).sum()
-            print(f'Too Old closed with an average gain of {a}')
+        gap = ' | '
+        headings = f"{gap}{'Wins':4s}{gap}{'Fails':5s}{gap}{'Closed':6s}{gap}{'Closed Average':14s}{gap} "
+        print('='*43)
+        for idx, pos in enumerate(self.positions):
+            outcomes = self.positions[pos].groupby(self.positions[pos]['outcome']).size()
+            closes = self.positions[pos][self.positions[pos]['outcome'] == 'Too Old']
+            closes = closes['close price']/closes['Buy Price']-1
+            print(pos)
+            print(headings)
+            a = lambda x: 0 if x not in outcomes else outcomes[x]
+            print(f"{gap}{a('Success'):4d}{gap}{a('Fail'):5d}{gap}{a('Too Old'):6d}{gap}{closes.mean():14.7f}{gap}")
+            score = (self.positions[pos]['close price']/self.positions[pos]['Buy Price']-1).sum()
+            print(f'Score: {score}')
+        print('='*43)
 
 
 # class old:
