@@ -65,4 +65,22 @@ def SMA(period:int, target:str = 'midpoint'):
     Returns:
         pandas.DataFrame: new column for data frame
     """
-    return lambda x: x[target].rolling(period).mean().rename(f'SMA {period}')
+    return lambda x: x[target].rolling(period).mean().rename(f'{target} SMA {period}')
+
+
+def midpoint():
+    def mid(x):
+        x.index = x.index.floor(freq = 'H')
+        midd = ((x['low']+x['high'])*0.5)
+        midd = midd.groupby(midd.index).mean()
+        return midd
+    return lambda x: mid(x).rename('midpoint')
+
+def deriv(target):
+    return lambda x: x[target].diff().rename('deriv')
+
+def secondDeriv(target):
+    return lambda x: x[target].diff().diff().rename('secondDeriv')
+
+def relative(numerator, denominator):
+    return lambda x: (x[numerator]/x[denominator]).rename(f'relative {numerator}')
