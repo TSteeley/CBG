@@ -63,7 +63,7 @@ def SMA(period:int, target:str = 'midpoint'):
         period (int): Period of the moving average
 
     Returns:
-        pandas.DataFrame: new column for data frame
+        pandas.DataFrame: new column for data frame with name f'{target} SMA {period}'
     """
     return lambda x: x[target].rolling(period).mean().rename(f'{target} SMA {period}')
 
@@ -77,10 +77,47 @@ def midpoint():
     return lambda x: mid(x).rename('midpoint')
 
 def deriv(target):
-    return lambda x: x[target].diff().rename('deriv')
+    """discrete derivative
+
+    Args:
+        target (str): column of df
+
+    Returns:
+        column of df: Discrete derivative of the data. Column is named f'{target} derivative'
+    """
+    return lambda x: x[target].diff().rename(f'{target} derivative')
 
 def secondDeriv(target):
-    return lambda x: x[target].diff().diff().rename('secondDeriv')
+    """Discrete second derivative of target column
+
+    Args:
+        target (str): name of target column
+
+    Returns:
+        df: discrete second derivative of target column named f'{target} second derivative'
+    """
+    return lambda x: x[target].diff().diff().rename(f'{target} second derivative')
 
 def relative(numerator, denominator):
+    """relative
+
+    Normalises a column W.R.T another value
+
+    Args:
+        numerator (column): column form df
+        denominator (column):column form df
+
+    Returns:
+        column: Normalised value named f'relative {numerator}'
+    """
     return lambda x: (x[numerator]/x[denominator]).rename(f'relative {numerator}')
+
+def vwap():
+    def mid(x):
+        x.index = x.index.floor(freq = 'H')
+        midd = x['vwap']*x['volume']
+        midd = midd.groupby(midd.index).sum()
+        volume = x['volume'].groupby(x.index).sum()
+        midd = midd/volume
+        return midd
+    return lambda x: mid(x).rename('vwap')
