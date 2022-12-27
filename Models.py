@@ -33,15 +33,15 @@ class CBG:
         """
         self.inter_indicators = inter_indicators
         self.intra_indicators = intra_indicators
-
+# open	high	low	close	volume	trade_count	vwap
         all_data = pickle.load(open('data.pkl','rb'))
         for ins in instruments:
             use = pd.DataFrame()
-            data:pd.DataFrame = all_data[f'{ins}_raw']
-            use['high'] = data['2. high'].groupby(data.index).max()
-            use['low'] = data['3. low'].groupby(data.index).min()
-            use['close'] = data['4. close'].groupby(data.index).nth(-1)
-            use['midpoint'] = data['midpoint'].groupby(data.index).mean()
+            data:pd.DataFrame = all_data[f'{ins}']
+            data.index = data.index.floor('H')
+            use['high'] = data['high'].groupby(data.index).max()
+            use['low'] = data['low'].groupby(data.index).min()
+            use['close'] = data['close'].groupby(data.index).nth(-1)
 
             for ind in intra_indicators:
                 use = pd.DataFrame.join(use,ind(data))
@@ -105,11 +105,11 @@ class CBG:
         for ind in self.positions:
             outcomes = []
             for pos in self.positions[ind].reset_index().to_dict('records'):
-                period = self.instruments[ind].loc[pos['time']:pos['time']+pd.Timedelta(days=7),:]
+                period = self.instruments[ind].loc[pos['timestamp']:pos['timestamp']+pd.Timedelta(days=7),:]
                 # IF the price never reaches the take profit or stop loss; 0 hits
                 if all([pos['SL'] < i < pos['TP'] for i in [period['low'].min(), period['high'].max()]]):
                     outcomes.append({
-                        'time': pos['time'],
+                        'timestamp': pos['timestamp'],
                         'outcome' : 'Too Old',
                         'close price' : period.iloc[-1,:]['close']
                     })
@@ -119,13 +119,13 @@ class CBG:
                     close = period[(period['high'] > pos['TP']) | (period['low'] < pos['SL'])].iloc[0,:]
                     if close['low'] < pos['SL']:
                         outcomes.append({
-                            'time' : pos['time'],
+                            'timestamp' : pos['timestamp'],
                             'outcome' : 'Fail',
                             'close price' : pos['SL']
                         })
                     elif close['high'] > pos['TP']:
                         outcomes.append({
-                            'time' : pos['time'],
+                            'timestamp' : pos['timestamp'],
                             'outcome' : 'Success',
                             'close price' : pos['TP']
                     })
@@ -133,7 +133,7 @@ class CBG:
                 # IF the price only reaches the Take profit
                 elif period['high'].max() > pos['TP']:
                     outcomes.append({
-                        'time' : pos['time'],
+                        'timestamp' : pos['timestamp'],
                         'outcome' : 'Success',
                         'close price' : pos['TP']
                     })
@@ -141,14 +141,14 @@ class CBG:
                 # IF the price reaches the Stop loss
                 elif period['low'].min() < pos['SL']:
                     outcomes.append({
-                        'time' : pos['time'],
+                        'timestamp' : pos['timestamp'],
                         'outcome' : 'Fail',
                         'close price' : pos['SL']
                     })
                     # assign close to be stop loss price
                 else:
                     print('Somethings fucked')
-            self.positions[ind] = pd.DataFrame.join(self.positions[ind],pd.DataFrame(outcomes).set_index('time'))
+            self.positions[ind] = pd.DataFrame.join(self.positions[ind],pd.DataFrame(outcomes).set_index('timestamp'))
 
 
     def get_score(self):
@@ -176,195 +176,3 @@ class CBG:
             print(f'Score: {score}')
         print('='*43)
 
-
-# class old:
-#     def __init__(self, data, stage):
-#         self.history = []
-#         self.open = []
-#         self.max_positions = inf
-#         self.age_limit = 200
-#         self.score = -inf
-#         self.id = ''
-
-#     def update_args(self, vars:list):
-#         self.score = []
-#         self.args = vars
-#         self.target = vars[0]
-#         self.fail = vars[1]
-#         count = 2
-
-#         for part in [self.price_modifiers, self.w_modifier, self.f_modifier]:
-#             for item in part:
-#                 part[item] = vars[count]
-#                 count+=1
-
-#         return self
-
-#     def Update_Price(self, data):
-#         self.buy = data[self.basis]
-#         modifier = 1
-#         for key in self.price_modifiers:
-#             modifier += data[key]*self.price_modifiers[key]
-
-#         self.buy *= modifier
-#         return self
-
-#     def buy_order(self, data):
-#         buy , sell = 1, 1
-
-#         for key in self.w_modifier:
-#             buy += data[key]*self.w_modifier[key]
-#         for key in self.f_modifier:
-#             sell+= data[key]*self.f_modifier[key]
-
-#         buy = max(1, buy + self.target)
-#         sell=  clip(sell-self.fail,0,1)
-
-#         self.open.append({
-#             'time': data['time'],
-#             'age':0,
-#             'type': 'Buy',
-#             'Price':self.buy,
-#             'win': self.buy*buy,
-#             'fail': self.buy*sell
-#         })
-#         return self
-
-#     def check_closes(self, data):
-#         if self.open.__len__() == 0:
-#             return self
-
-#         close = [d for d in self.open if (d['type'] == 'Buy') & ((d['win'] < data['2. high']) | (d['fail'] > data['3. low']) | (d['age'] >= self.age_limit))]
-
-#         for row in close:
-#             if ambiguous(row, data):
-#                 self.history.append({
-#                     'Open Time': row['time'],
-#                     'Close Time': data['time'],
-#                     'type': row['type'],
-#                     'Price':row['Price'],
-#                     'Close': 0,
-#                     'Outcome': 'Ambiguous'
-#                 })
-#                 self.open.remove(row)
-
-#             elif win(row, data):
-#                 self.history.append({
-#                     'Open Time': row['time'],
-#                     'Close Time': data['time'],
-#                     'type': row['type'],
-#                     'Price':row['Price'],
-#                     'Close': row['win'],
-#                     'Outcome': 'Success'
-#                 })
-#                 self.open.remove(row)
-
-#             elif fail(row, data):
-#                 self.history.append({
-#                     'Open Time': row['time'],
-#                     'Close Time': data['time'],
-#                     'type': row['type'],
-#                     'Price':row['Price'],
-#                     'Close': row['fail'],
-#                     'Outcome': 'Fail'
-#                 })
-#                 self.open.remove(row)
-
-#             elif row['age'] >= self.age_limit:
-#                 self.history.append({
-#                     'Open Time': row['time'],
-#                     'Close Time': data['time'],
-#                     'type': row['type'],
-#                     'Price':row['Price'],
-#                     'Close': data['4. close'],
-#                     'Outcome': 'Too Old'
-#                 })
-#                 self.open.remove(row)
-#         for row in self.open:
-#             row['age'] += 1
-#         return self
-
-#     def closing_time(self):
-#         for row in self.open:
-#             if row['age'] <= self.age_limit:
-#                 self.history.append({
-#                     'Open Time': row['time'],
-#                     'Close Time': 'N/A',
-#                     'type': row['type'],
-#                     'Price':row['Price'],
-#                     'Outcome': 'just a baby'
-#                 })
-#                 self.open.remove(row)
-#             else:
-#                 self.history.append({
-#                     'Open Time': row['time'],
-#                     'Close Time': 'N/A',
-#                     'type': row['type'],
-#                     'Price':row['Price'],
-#                     'Outcome': 'remains open'
-#                 })
-#                 self.open.remove(row)
-#         return self
-
-#     def get_open_positions(self):
-#         return self.open.__len__()
-
-#     def get_keys(self):
-#         keys = []
-#         for part in [self.price_modifiers, self.w_modifier, self.f_modifier]:
-#             key = []
-#             for item in part:
-#                 key.append(item)
-#             keys.append(keys)
-#         return keys
-
-#     def set_id(modifiers):
-#         b = str(modifiers[0].keys()).removeprefix('dict_keys(').removesuffix(')')
-#         c = str(modifiers[1].keys()).removeprefix('dict_keys(').removesuffix(')')
-#         d = str(modifiers[2].keys()).removeprefix('dict_keys(').removesuffix(')')
-#         id = f'pm{b}wm{c}fm{d}'
-#         return id
-
-# def test_model(data, model:CBG):
-#     for row in data:
-#         model = model.check_closes(row)
-#         if (model.get_open_positions() < model.max_positions) and model.buy > row['3. low']:
-#             model.buy = min(model.buy, row['2. high'])
-#             model.buy_order(row)
-#         model = model.Update_Price(row)
-#     model = model.closing_time()
-#     return model
-
-# def pl(score):
-#     log = 1
-#     for row in score:
-#         match row['type']:
-#             case 'Buy':
-#                 log *= row['Close']/row['Price']
-#             case 'Sell':
-#                 log *= 2-(row['Close']/row['Price'])
-#     return log
-
-# def get_score(model:CBG):
-#     score  = [d for d in model.history if ((d['Outcome'] != 'Ambiguous') & (d['Outcome'] != 'just a baby'))]
-#     score = pl(score)
-#     score = 10*score
-#     return score+(random.random()-0.5)*0.01
-
-# def check_results(model):
-#     if not model.history:
-#         model = test_model(Gather_Extended('spy'), model)
-#     win = len([d for d in model.history if d['Outcome'] == 'Success'])
-#     fail = len([d for d in model.history if d['Outcome'] == 'Fail'])
-#     babies = len([d for d in model.history if d['Outcome'] == 'just a baby'])
-#     age = len([d for d in model.history if d['Outcome'] == 'Too Old'])
-#     errors = len(model.history)-win-fail-babies-age
-#     return win, fail, babies, age, errors
-
-# def std(score):
-#     mean = sum(score)/len(score)
-#     stdev = 0
-#     for item in score:
-#         stdev += (item-mean)**2
-#     stdev = (stdev / len(score))**(1/2)
-#     return mean, stdev
