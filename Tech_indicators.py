@@ -1,4 +1,4 @@
-def rsi(period:int, target:str = 'midpoint'):
+def rsi(period:int, target:str):
     def rsi(data):
         try:
             up, down = [], []
@@ -87,6 +87,17 @@ def deriv(target):
     """
     return lambda x: x[target].diff().rename(f'{target} derivative')
 
+def smoothderiv(target,period):
+    """discrete derivative
+
+    Args:
+        target (str): column of df
+
+    Returns:
+        column of df: Discrete derivative of the data. Column is named f'smooth {target} derivative'
+    """
+    return lambda x: x[target].diff().rolling(period).mean().rename(f'smooth {target} derivative')
+
 def secondDeriv(target):
     """Discrete second derivative of target column
 
@@ -97,6 +108,18 @@ def secondDeriv(target):
         df: discrete second derivative of target column named f'{target} second derivative'
     """
     return lambda x: x[target].diff().diff().rename(f'{target} second derivative')
+
+def smoothSecondDeriv(target,period):
+    """Discrete second derivative of target column
+
+    Args:
+        target (str): name of target column
+
+    Returns:
+        df: discrete second derivative of target column named f'smooth {target} second derivative'
+    """
+    return lambda x: x[target].rolling(period).mean().diff().diff().rename(f'smooth {target} second derivative')
+
 
 def relative(numerator, denominator):
     """relative
@@ -121,3 +144,28 @@ def vwap():
         midd = midd/volume
         return midd
     return lambda x: mid(x).rename('vwap')
+
+def smstd(target, period):
+    """Simple Moving Standard Deviation
+
+    Args:
+        target (column naeme)
+        period (int)
+
+    Returns:
+        column: simple moving standard deviation named {target} smstd {period}
+    """
+    return lambda x: x[target].rolling(period).std().rename(f'{target} smstd {period}')
+
+def destroy(target):
+    """Destroy
+
+    Deletes unneeded columns
+
+    Args:
+        target (name): name of column to be destroyed
+
+    Returns:
+        df: df no longer contatining destroyed column
+    """
+    return lambda x: x.drop(target,axis=1)
