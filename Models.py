@@ -236,3 +236,12 @@ class CBG:
             years = (time.days+(time.seconds/86400))/365
             scores.append((self.stats[item].iloc[-1]['money']/100)**(1/years))
         return sum(scores)/len(scores)
+
+    def verifyBuys(self):
+        for ins in self.positions:
+            b = self.instruments[ins]
+            reqRows = [b.index.get_loc(i)+1 for i in self.positions[ins].index.tolist()]
+            b = b.iloc[reqRows,:]
+            b.index = self.positions[ins].index
+            self.positions[ins] = self.positions[ins][(b['low'] < self.positions[ins]['Buy Price']) & (self.positions[ins]['Buy Price'] < b['high'])]
+        return self
