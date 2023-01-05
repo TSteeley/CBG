@@ -1,7 +1,6 @@
 import pickle
 import pandas as pd
 from math import inf
-import random
 from numpy import clip
 from Gather_data import Gather
 pd.options.mode.chained_assignment = None
@@ -17,6 +16,7 @@ class CBG:
         self.fail_condition = ''
         self.report = {}
         self.positions = {}
+        self.age = 7
 
     def set_instruments(self, instruments:list, intra_indicators:list = [], inter_indicators:list = []):
         """Initialise data
@@ -105,29 +105,32 @@ class CBG:
         for ind in self.positions:
             outcomes = []
             for pos in self.positions[ind].reset_index().to_dict('records'):
-                period = self.instruments[ind].loc[pos['timestamp']:pos['timestamp']+pd.Timedelta(days=7),:]
+                period = self.instruments[ind].loc[pos['timestamp']:pos['timestamp']+pd.Timedelta(days=self.age),:]
                 # IF the price never reaches the take profit or stop loss; 0 hits
                 if all([pos['SL'] < i < pos['TP'] for i in [period['low'].min(), period['high'].max()]]):
                     outcomes.append({
                         'timestamp': pos['timestamp'],
                         'outcome' : 'Too Old',
-                        'close price' : period.iloc[-1,:]['close']
+                        'close price' : period.iloc[-1]['close'],
+                        'close time': period.iloc[-1].name,
                     })
                 # IF the price reaches the Take profit AND stop loss; Mulitple hits
                 elif not any([pos['SL'] < i < pos['TP'] for i in [period['low'].min(), period['high'].max()]]):
                     # comb through hour by hour to see what happens first
-                    close = period[(period['high'] > pos['TP']) | (period['low'] < pos['SL'])].iloc[0,:]
+                    close = period[(period['high'] > pos['TP']) | (period['low'] < pos['SL'])].iloc[0]
                     if close['low'] < pos['SL']:
                         outcomes.append({
                             'timestamp' : pos['timestamp'],
                             'outcome' : 'Fail',
-                            'close price' : pos['SL']
+                            'close price' : pos['SL'],
+                            'close time': close.name
                         })
                     elif close['high'] > pos['TP']:
                         outcomes.append({
                             'timestamp' : pos['timestamp'],
                             'outcome' : 'Success',
-                            'close price' : pos['TP']
+                            'close price' : pos['TP'],
+                            'close time': close.name
                     })
 
                 # IF the price only reaches the Take profit
@@ -135,7 +138,8 @@ class CBG:
                     outcomes.append({
                         'timestamp' : pos['timestamp'],
                         'outcome' : 'Success',
-                        'close price' : pos['TP']
+                        'close price' : pos['TP'],
+                        'close time': period[period['high'] > pos['TP']].iloc[0].name
                     })
 
                 # IF the price reaches the Stop loss
@@ -143,11 +147,13 @@ class CBG:
                     outcomes.append({
                         'timestamp' : pos['timestamp'],
                         'outcome' : 'Fail',
-                        'close price' : pos['SL']
+                        'close price' : pos['SL'],
+                        'close time': period[period['low']< pos['SL']].iloc[0].name
                     })
                     # assign close to be stop loss price
                 else:
                     print('Somethings fucked')
+                    print(pos)
             self.positions[ind] = pd.DataFrame.join(self.positions[ind],pd.DataFrame(outcomes).set_index('timestamp'))
 
 
@@ -158,7 +164,9 @@ class CBG:
             scr = scr-1
             scr = scr.sum()
             score.append(scr)
-        return sum(score)/len(score)
+        mean = sum(score)/len(score)
+        std = (1/(len(score)-1)*sum([(i-mean)**2 for i in score]))**0.5
+        return mean-std
 
     def get_report(self):
         gap = ' | '
@@ -176,3 +184,55 @@ class CBG:
             print(f'Score: {score}')
         print('='*43)
 
+    def get_realisticOutcome(self, basis:int = 0.01):
+        self.stats = {}
+        for ind in self.positions:
+            stats = [{'money':100, 'free money':100,'open positions':0}]
+            events = []
+            positions = self.positions[ind].reset_index().to_dict('records')
+            for row in positions:
+                events.append({
+                    'event': 'open',
+                    'time': row['timestamp'],
+                })
+                events.append({
+                    'event':'close',
+                    'time':row['close time'],
+                })
+            events = sorted(events, key=lambda x: x['time'])
+
+            for event in events:
+                match event['event']:
+                    case 'open':
+                        if basis*stats[-1]['money'] > stats[-1]['free money']:
+                            pass
+                        else:
+                            idx = next(idx for idx, item in enumerate(positions) if item['timestamp'] == event['time'])
+                            positions[idx]['init value'] = basis*stats[-1]['money']
+                            stats.append({
+                                'money':stats[-1]['money'],
+                                'free money': stats[-1]['free money']-basis*stats[-1]['money'],
+                                'open positions': stats[-1]['open positions']+1
+                            })
+                    case 'close':
+                        idx = next(idx for idx, item in enumerate(positions) if item['close time'] == event['time'])
+                        if 'init value' not in positions[idx]:
+                            pass
+                        else:
+                            positions[idx]['end value'] = (positions[idx]['close price']/positions[idx]['Buy Price'])*positions[idx]['init value']
+                            stats.append({
+                                'money': stats[-1]['money']-positions[idx]['init value']+positions[idx]['end value'],
+                                'free money': stats[-1]['free money']+positions[idx]['end value'],
+                                'open positions': stats[-1]['open positions']-1
+                            })
+            self.stats[ind] = pd.DataFrame(stats)
+        return self
+
+    def get_realisticScore(self, basis):
+        self.get_realisticOutcome(basis)
+        scores = []
+        for item in self.stats:
+            time = self.instruments[item].iloc[-1].name-self.instruments[item].iloc[0].name
+            years = (time.days+(time.seconds/86400))/365
+            scores.append((self.stats[item].iloc[-1]['money']/100)**(1/years))
+        return sum(scores)/len(scores)
